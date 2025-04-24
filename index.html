@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Spectrum</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+        text-align: center;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        background: #007BFF;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:hover { background: #0056b3; }
+      .video-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px;
+        margin-top: 20px;
+      }
+      .video-container {
+        position: relative;
+        width: 640px;
+        height: 480px;
+      }
+      #display, #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 640px;
+        height: 480px;
+        border: 1px solid #ccc;
+      }
+      input[type="number"], input[type="text"] {
+        padding: 6px;
+        font-size: 14px;
+        width: 80px;
+        margin: 4px 0;
+      }
+      .controls {
+        margin-top: 20px;
+      }
+      #results img {
+        max-width: 640px;
+        border: 1px solid #ccc;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Spectrum</h1>
+    <div>
+      <button id="startStopBtn">Start Stream</button>
+      <button id="processBtn" style="display:none;">Capture &amp; Process</button>
+      <button id="forceClearBtn">Force Clear</button>
+    </div>
+
+    <div class="video-wrapper" id="liveSection">
+      <div class="video-container">
+        <img id="display" src="" alt="Live or Captured">
+        <canvas id="overlay"></canvas>
+      </div>
+      <div>
+        <div><label>X1: <input type="number" id="x1" value="450"></label></div>
+        <div><label>Y1: <input type="number" id="y1" value="190"></label></div>
+        <div><label>X2: <input type="number" id="x2" value="580"></label></div>
+        <div><label>Y2: <input type="number" id="y2" value="225"></label></div>
+      </div>
+    </div>
+
+    <div id="results" style="display:none;">
+      <h2>Cropped Region</h2>
+      <img id="croppedImg" alt="Cropped">
+      <div class="controls">
+        <input type="text" id="cropFilenameInput" placeholder="crop.png">
+        <button id="saveCropBtn">Save Cropped</button>
+      </div>
+
+      <h2>Spectral Plot</h2>
+      <img id="spectrumImg" alt="Spectrum">
+      <div class="controls">
+        <input type="text" id="specFilenameInput" placeholder="spectrum.png">
+        <button id="saveSpecBtn">Save Spectrum</button>
+      </div>
+
+      <h2>Raw Data</h2>
+      <textarea id="dataText" rows="10" cols="40" readonly style="font-family: monospace;"></textarea>
+      <div class="controls">
+        <input type="text" id="dataFilenameInput" placeholder="data.txt">
+        <button id="saveDataBtn">Save Data</button>
+      </div>
+    </div>
+
+    <script>
+      const piURL = "http://192.168.0.141:5001";
+      const startStopBtn = document.getElementById("startStopBtn");
+      const processBtn   = document.getElementById("processBtn");
+      const forceClearBtn= document.getElementById("forceClearBtn");
+      const display      = document.getElementById("display");
+      const overlay      = document.getElementById("overlay");
+      const liveSection  = document.getElementById("liveSection");
+      const results      = document.getElementById("results");
+      const croppedImg   = document.getElementById("croppedImg");
+      const spectrumImg  = document.getElementById("spectrumImg");
+      const dataText     = document.getElementById("dataText");
+      const saveCropBtn  = document.getElementById("saveCropBtn");
+      const saveSpecBtn  = document.getElementById("saveSpecBtn");
+      const saveDataBtn  = document.getElementById("saveDataBtn");
+      const cropFilename = document.getElementById("cropFilenameInput");
+      const specFilename = document.getElementById("specFilenameInput");
+      const dataFilename = document.getElementById("dataFilenameInput");
+
+      let streaming = false;
+      const inputs = {
+        x1: document.getElementById("x1"),
+        y1: document.getElementById("y1"),
+        x2: document.getElementById("x2"),
+        y2: document.getElementById("y2")
+      };
+
+      function drawBox() {
+        const ctx = overlay.getContext("2d");
+        const w = display.clientWidth, h = display.clientHeight;
+        overlay.width = w; overlay.height = h;
+        ctx.clearRect(0,0,w,h);
+        const x1 = +inputs.x1.value, y1 = +inputs.y1.value;
+        const x2 = +inputs.x2.value, y2 = +inputs.y2.value;
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x1,y1, x2-x1, y2-y1);
+      }
+      Object.values(inputs).forEach(i=>i.addEventListener("input",drawBox));
+      display.onload = drawBox;
+
+      async function startCamera(){
+        startStopBtn.disabled = true;
+        try {
+          const res = await fetch(piURL+"/start",{method:"POST"});
+          const j = await res.json();
+          if(res.ok && j.status==="started"){
+            streaming = true;
+            display.src = piURL+"/video_feed";
+            processBtn.style.display = "inline-block";
+            startStopBtn.textContent = "Stop Stream";
+          } else alert("Start error: "+(j.message||"unknown"));
+        } catch {
+          alert("Cannot reach camera server");
+        }
+        startStopBtn.disabled = false;
+      }
+      async function stopCamera(){
+        startStopBtn.disabled = true;
+        try {
+          const res = await fetch(piURL+"/stop",{method:"POST"});
+          const j = await res.json();
+          if(res.ok){
+            streaming=false;
+            display.src="";
+            processBtn.style.display="none";
+            startStopBtn.textContent="Start Stream";
+          } else alert("Stop error: "+(j.message||"unknown"));
+        } catch {
+          alert("Cannot reach camera server");
+        }
+        startStopBtn.disabled=false;
+      }
+      startStopBtn.onclick = ()=> streaming?stopCamera():startCamera();
+
+      forceClearBtn.onclick = async()=>{
+        await fetch(piURL+"/stop",{method:"POST"}).catch(()=>{});
+        streaming=false;
+        display.src="";
+        processBtn.style.display="none";
+        startStopBtn.textContent="Start Stream";
+        overlay.getContext("2d").clearRect(0,0,overlay.width,overlay.height);
+        results.style.display="none";
+        liveSection.style.display="flex";
+      };
+
+      processBtn.onclick = async()=>{
+        processBtn.disabled=true;
+        const coords={ x1:+inputs.x1.value, y1:+inputs.y1.value, x2:+inputs.x2.value, y2:+inputs.y2.value };
+        try {
+          const res = await fetch(piURL+"/capture",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify(coords)
+          });
+          const j = await res.json();
+          if(!res.ok) alert("Process error: "+(j.message||res.status));
+          else {
+            croppedImg.src  ="data:image/png;base64,"+j.cropped;
+            spectrumImg.src ="data:image/png;base64,"+j.spectrum;
+            dataText.value = j.data;         // fill textarea
+            liveSection.style.display="none";
+            results.style.display="block";
+          }
+        } catch {
+          alert("Cannot reach camera server");
+        }
+        processBtn.disabled=false;
+      };
+
+      saveCropBtn.onclick=()=>{
+        if(!croppedImg.src) return alert("No image");
+        let fn=cropFilename.value.trim()||"crop.png";
+        if(!fn.match(/\.[a-z]+$/))fn+=".png";
+        const a=document.createElement("a");
+        a.href=croppedImg.src; a.download=fn; a.click();
+      };
+      saveSpecBtn.onclick=()=>{
+        if(!spectrumImg.src) return alert("No spectrum");
+        let fn=specFilename.value.trim()||"spectrum.png";
+        if(!fn.match(/\.[a-z]+$/))fn+=".png";
+        const a=document.createElement("a");
+        a.href=spectrumImg.src; a.download=fn; a.click();
+      };
+      saveDataBtn.onclick=()=>{
+        const text=dataText.value;
+        if(!text) return alert("No data");
+        let fn=dataFilename.value.trim()||"data.txt";
+        if(!fn.match(/\.[a-z]+$/))fn+=".txt";
+        const blob=new Blob([text],{type:"text/plain"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url; a.download=fn; a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      drawBox();
+    </script>
+  </body>
+</html>

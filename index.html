@@ -47,6 +47,11 @@
         width: 80px;
         margin: 4px 0;
       }
+      textarea {
+        width: 640px;
+        margin-top: 10px;
+        font-family: monospace;
+      }
       .controls {
         margin-top: 20px;
       }
@@ -94,7 +99,7 @@
       </div>
 
       <h2>Raw Data</h2>
-      <textarea id="dataText" rows="10" cols="40" readonly style="font-family: monospace;"></textarea>
+      <textarea id="dataText" rows="10" readonly></textarea>
       <div class="controls">
         <input type="text" id="dataFilenameInput" placeholder="data.txt">
         <button id="saveDataBtn">Save Data</button>
@@ -189,7 +194,12 @@
 
       processBtn.onclick = async()=>{
         processBtn.disabled=true;
-        const coords={ x1:+inputs.x1.value, y1:+inputs.y1.value, x2:+inputs.x2.value, y2:+inputs.y2.value };
+        const coords={
+          x1:+inputs.x1.value,
+          y1:+inputs.y1.value,
+          x2:+inputs.x2.value,
+          y2:+inputs.y2.value
+        };
         try {
           const res = await fetch(piURL+"/capture",{
             method:"POST",
@@ -201,7 +211,7 @@
           else {
             croppedImg.src  ="data:image/png;base64,"+j.cropped;
             spectrumImg.src ="data:image/png;base64,"+j.spectrum;
-            dataText.value = j.data;         // fill textarea
+            dataText.value  = j.data;
             liveSection.style.display="none";
             results.style.display="block";
           }
@@ -214,14 +224,14 @@
       saveCropBtn.onclick=()=>{
         if(!croppedImg.src) return alert("No image");
         let fn=cropFilename.value.trim()||"crop.png";
-        if(!fn.match(/\.[a-z]+$/))fn+=".png";
+        if(!fn.match(/\.[a-z]+$/)) fn+=".png";
         const a=document.createElement("a");
         a.href=croppedImg.src; a.download=fn; a.click();
       };
       saveSpecBtn.onclick=()=>{
         if(!spectrumImg.src) return alert("No spectrum");
         let fn=specFilename.value.trim()||"spectrum.png";
-        if(!fn.match(/\.[a-z]+$/))fn+=".png";
+        if(!fn.match(/\.[a-z]+$/)) fn+=".png";
         const a=document.createElement("a");
         a.href=spectrumImg.src; a.download=fn; a.click();
       };
@@ -229,7 +239,7 @@
         const text=dataText.value;
         if(!text) return alert("No data");
         let fn=dataFilename.value.trim()||"data.txt";
-        if(!fn.match(/\.[a-z]+$/))fn+=".txt";
+        if(!fn.match(/\.[a-z]+$/)) fn+=".txt";
         const blob=new Blob([text],{type:"text/plain"});
         const url=URL.createObjectURL(blob);
         const a=document.createElement("a");

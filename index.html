@@ -47,6 +47,20 @@
         box-shadow: 0 0 10px #16f381, 0 0 20px #16f38133;
         transform: translateY(-1px);
       }
+      #startStopBtn.stop {
+        background: #ff4d4d;
+        color: #0d0d0d;
+      }
+      #startStopBtn.stop:hover {
+        box-shadow: 0 0 10px #ff4d4d, 0 0 20px #ff4d4d33;
+        transform: translateY(-1px);
+      }
+
+      #processBtn {
+        background: #16f381;
+        color: #0d0d0d;
+      }
+
       #forceClearBtn {
         background: #ff4d4d;
         color: #0d0d0d;
@@ -258,15 +272,13 @@
       <!-- controls -->
       <div>
         <button id="startStopBtn">START</button>
-        <button id="processBtn" style="display: none">
-          Capture &amp; Process
-        </button>
+        <button id="processBtn" style="display: none">CAPTURE</button>
       </div>
 
       <!-- video + coords -->
       <div class="video-wrapper" id="liveSection">
         <div class="video-container">
-          <img id="display" alt="" style="background-color: black;" />
+          <img id="display" alt="" style="background-color: black" />
           <canvas id="overlay"></canvas>
         </div>
 
@@ -293,7 +305,7 @@
 
       <!-- results -->
       <div id="results" style="display: none; width: 100%; max-width: 640px">
-        <h2>Cropped Region</h2>
+        <!-- <h2>Cropped Region</h2> -->
         <img
           id="croppedImg"
           alt="Cropped"
@@ -301,10 +313,10 @@
         />
         <div class="controls">
           <input type="text" id="cropFilenameInput" placeholder="crop.png" />
-          <button id="saveCropBtn">Save Cropped</button>
+          <button id="saveCropBtn">Save</button>
         </div>
 
-        <h2>Spectral Plot</h2>
+        <!-- <h2>Spectral Plot</h2> -->
         <img
           id="spectrumImg"
           alt="Spectrum"
@@ -316,14 +328,14 @@
             id="specFilenameInput"
             placeholder="spectrum.png"
           />
-          <button id="saveSpecBtn">Save Spectrum</button>
+          <button id="saveSpecBtn">Save</button>
         </div>
 
         <h2>Raw Data</h2>
-        <textarea id="dataText" rows="6" readonly></textarea>
+        <!-- <textarea id="dataText" rows="6" readonly></textarea> -->
         <div class="controls">
           <input type="text" id="dataFilenameInput" placeholder="data.txt" />
-          <button id="saveDataBtn">Save Data</button>
+          <button id="saveDataBtn">Save</button>
         </div>
       </div>
     </div>
@@ -381,23 +393,40 @@
 
       startStopBtn.onclick = async () => {
         startStopBtn.disabled = true;
+
         if (!streaming) {
-          // START
           try {
-            const res = await fetch(piURL + "/start", { method: "POST" });
-            const j = await res.json();
+            // 1) Try to start
+            let res = await fetch(piURL + "/start", { method: "POST" });
+            let j = await res.json();
+
             if (res.ok && j.status === "started") {
+              // ✅ Started cleanly
               streaming = true;
-              display.src = piURL + "/video_feed";
-              // display.style.display = "block";
-              processBtn.style.display = "inline-block";
-              startStopBtn.textContent = "Stop Stream";
-              overlay.style.display = "block";
-              drawBox();
             } else {
-              alert("Start error: " + (j.message || "unknown"));
+              // ⚠️ Something was off (maybe already started) — force stop & retry
+              await fetch(piURL + "/stop", { method: "POST" }).catch(() => {});
+              res = await fetch(piURL + "/start", { method: "POST" });
+              j = await res.json();
+
+              if (res.ok && j.status === "started") {
+                streaming = true;
+              } else {
+                // still failed; show actual reason
+                alert("Start error: " + (j.message || j.status || res.status));
+                startStopBtn.disabled = false;
+                return;
+              }
             }
-          } catch {
+
+            // 🎉 Update UI for “streaming”
+            display.src = piURL + "/video_feed";
+            processBtn.style.display = "inline-block";
+            startStopBtn.textContent = "STOP";
+            startStopBtn.classList.add("stop");
+            overlay.style.display = "block";
+            drawBox();
+          } catch (e) {
             alert("Cannot reach camera server");
           }
         } else {
@@ -407,18 +436,19 @@
             if (res.ok) {
               streaming = false;
               display.src = "";
-              // display.style.display = "none";
               processBtn.style.display = "none";
-              startStopBtn.textContent = "Start Stream";
+              startStopBtn.textContent = "START";
+              startStopBtn.classList.remove("stop");
               overlay.style.display = "none";
             } else {
               const j = await res.json();
-              alert("Stop error: " + (j.message || "unknown"));
+              alert("Stop error: " + (j.message || j.status));
             }
           } catch {
             alert("Cannot reach camera server");
           }
         }
+
         startStopBtn.disabled = false;
       };
 
@@ -426,7 +456,7 @@
         streaming = false;
         display.src = "";
         processBtn.style.display = "none";
-        startStopBtn.textContent = "Start Stream";
+        startStopBtn.textContent = "START";
         overlay.style.display = "none";
         results.style.display = "none";
         liveSection.style.display = "flex";

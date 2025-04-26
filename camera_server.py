@@ -133,9 +133,9 @@ def process_image(crop):
     # Y axis: 0 → 10% above max intensity
     y_max = smooth.max() * 1.10
     ax.set_ylim(0, y_max)
-    ax.set_ylabel("Intensity (arb. units)")
+    ax.set_ylabel("Intensity")
 
-    ax.set_title("Spectral Intensity")
+    ax.set_title("")
     ax.grid(True, linestyle="--", alpha=0.5)
 
     # legend below
@@ -164,26 +164,31 @@ def process_image(crop):
 
 @app.route('/capture', methods=['POST'])
 def capture():
-    global frame, running, picam2
+    global frame
+
     data = request.get_json(force=True)
     x1, y1 = int(data['x1']), int(data['y1'])
     x2, y2 = int(data['x2']), int(data['y2'])
 
+    # grab the latest frame under the lock
     with lock:
+        if frame is None:
+            return jsonify(error="No frame available"), 503
         snap = frame.copy()
 
-    running = False
-    picam2.stop()
-    picam2.close()
-    time.sleep(0.3)
-
+    # crop bounds safely
     h, w = snap.shape[:2]
     x1, x2 = max(0, x1), min(w, x2)
     y1, y2 = max(0, y1), min(h, y2)
     crop = snap[y1:y2, x1:x2]
 
-    cr, sp, dt = process_image(crop)
-    return jsonify(cropped=cr, spectrum=sp, data=dt)
+    try:
+        cr, sp, dt = process_image(crop)
+        return jsonify(cropped=cr, spectrum=sp, data=dt)
+    except Exception as e:
+        # if something goes wrong in processing, send JSON error
+        return jsonify(error=str(e)), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, threaded=True)

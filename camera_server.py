@@ -174,7 +174,8 @@ def capture():
     with lock:
         if frame is None:
             return jsonify(error="No frame available"), 503
-        snap = frame.copy()
+        # snap = frame.copy()
+        snap = cv2.flip(frame.copy(), 1)
 
     # crop bounds safely
     h, w = snap.shape[:2]

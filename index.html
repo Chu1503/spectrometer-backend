@@ -21,8 +21,6 @@
 
       /* wrapper to constrain width and add vertical spacing */
       .container {
-        width: 100%;
-        max-width: 900px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -69,7 +67,15 @@
         box-shadow: 0 0 10px #ff4d4d, 0 0 20px #ff4d4d33;
         transform: translateY(-1px);
       }
-
+      #saveCropBtn {
+        width: 150px;
+      }
+      #saveSpecBtn {
+        width: 150px;
+      }
+      #saveDataBtn {
+        width: 150px;
+      }
       /* video + controls */
       .video-wrapper {
         display: flex;
@@ -92,6 +98,97 @@
         position: relative;
         width: 640px;
         height: 480px;
+      }
+      /* mirror the camera feed */
+      .video-container img,
+      .video-container canvas {
+        transform: scaleX(-1);
+        transform-origin: center center;
+      }
+
+      .controls {
+        display: flex;
+        gap: 16px;
+      }
+
+      /* results rows */
+      .result-row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        width: 100%;
+        margin-top: 30px;
+      }
+
+      /* thumbnail sizing */
+      .result-thumb {
+        flex-shrink: 0;
+        width: 100%;
+        border: 1px solid #ccc;
+      }
+
+      /* textarea styling */
+      .result-row textarea.result-thumb {
+        background: #171717;
+        color: #ededed;
+        border: 1px solid #ccc;
+        resize: none;
+      }
+
+      /* right‐hand controls */
+      .result-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 120px;
+        align-items: center;
+        margin-left: 15px;
+      }
+
+      .result-controls input {
+        background: #171717;
+        border: 1px solid #16f381;
+        border-radius: 4px;
+        color: #ededed;
+        padding: 6px;
+        font-size: 16px;
+        text-align: center;
+      }
+
+      .result-controls button {
+        font-size: 16px;
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #000;
+        background: #16f381;
+        color: #0d0d0d;
+        cursor: pointer;
+        transition: box-shadow 0.2s ease;
+      }
+
+      .result-controls button:hover {
+        box-shadow: 0 0 6px #16f381;
+      }
+
+      .clear-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-top: 24px;
+      }
+      .clear-container button {
+        font-size: 20px;
+        padding: 10px 24px;
+        border-radius: 5px;
+        border: 2px solid #000;
+        background: #ff4d4d;
+        color: #0d0d0d;
+        cursor: pointer;
+        transition: box-shadow 0.3s ease, transform 0.2s ease;
+      }
+      .clear-container button:hover {
+        box-shadow: 0 0 10px #ff4d4d, 0 0 20px #ff4d4d33;
+        transform: translateY(-1px);
       }
       /* the “screen” */
       #display {
@@ -122,7 +219,7 @@
         color: #ededed;
         padding: 7px;
         font-size: 20px;
-        width: 80px;
+        width: 150px;
         text-align: center;
       }
 
@@ -270,19 +367,17 @@
   <body>
     <div class="container">
       <!-- controls -->
-      <div>
+      <div class="controls">
         <button id="startStopBtn">START</button>
         <button id="processBtn" style="display: none">CAPTURE</button>
       </div>
 
-      <!-- video + coords -->
+      <!-- live video + coords -->
       <div class="video-wrapper" id="liveSection">
         <div class="video-container">
           <img id="display" alt="" style="background-color: black" />
           <canvas id="overlay"></canvas>
         </div>
-
-        <!-- inputs go below the video -->
         <div class="input-grid">
           <div>
             <label>X1: <input type="number" id="x1" value="450" /></label>
@@ -299,44 +394,49 @@
         </div>
       </div>
 
-      <div>
-        <button id="forceClearBtn">CLEAR</button>
+      <!-- results (hidden until after capture) -->
+      <div id="results" style="display: none; width: 100%; max-width: 640px">
+        <!-- Cropped image + controls -->
+        <div class="result-row">
+          <img id="croppedImg" alt="Cropped" class="result-thumb" />
+          <div class="result-controls">
+            <input type="text" id="cropFilenameInput" placeholder="crop.png" />
+            <button id="saveCropBtn">Save</button>
+          </div>
+        </div>
+
+        <!-- Spectrum plot + controls -->
+        <div class="result-row">
+          <img id="spectrumImg" alt="Spectrum" class="result-thumb" />
+          <div class="result-controls">
+            <input
+              type="text"
+              id="specFilenameInput"
+              placeholder="spectrum.png"
+            />
+            <button id="saveSpecBtn">Save</button>
+          </div>
+        </div>
+
+        <!-- Raw data + controls -->
+        <div class="result-row">
+          <!-- <textarea
+            id="dataText"
+            rows="6"
+            class="result-thumb"
+            readonly
+          ></textarea> -->
+          <h2>Raw Data</h2>
+          <div class="result-controls">
+            <input type="text" id="dataFilenameInput" placeholder="data.txt" />
+            <button id="saveDataBtn">Save</button>
+          </div>
+        </div>
       </div>
 
-      <!-- results -->
-      <div id="results" style="display: none; width: 100%; max-width: 640px">
-        <!-- <h2>Cropped Region</h2> -->
-        <img
-          id="croppedImg"
-          alt="Cropped"
-          style="width: 100%; border: 1px solid #ccc"
-        />
-        <div class="controls">
-          <input type="text" id="cropFilenameInput" placeholder="crop.png" />
-          <button id="saveCropBtn">Save</button>
-        </div>
-
-        <!-- <h2>Spectral Plot</h2> -->
-        <img
-          id="spectrumImg"
-          alt="Spectrum"
-          style="width: 100%; border: 1px solid #ccc"
-        />
-        <div class="controls">
-          <input
-            type="text"
-            id="specFilenameInput"
-            placeholder="spectrum.png"
-          />
-          <button id="saveSpecBtn">Save</button>
-        </div>
-
-        <h2>Raw Data</h2>
-        <!-- <textarea id="dataText" rows="6" readonly></textarea> -->
-        <div class="controls">
-          <input type="text" id="dataFilenameInput" placeholder="data.txt" />
-          <button id="saveDataBtn">Save</button>
-        </div>
+      <!-- CLEAR button always at the bottom -->
+      <div class="clear-container">
+        <button id="forceClearBtn">CLEAR</button>
       </div>
     </div>
 
@@ -401,10 +501,9 @@
             let j = await res.json();
 
             if (res.ok && j.status === "started") {
-              // ✅ Started cleanly
+              // Started cleanly
               streaming = true;
             } else {
-              // ⚠️ Something was off (maybe already started) — force stop & retry
               await fetch(piURL + "/stop", { method: "POST" }).catch(() => {});
               res = await fetch(piURL + "/start", { method: "POST" });
               j = await res.json();
@@ -419,7 +518,7 @@
               }
             }
 
-            // 🎉 Update UI for “streaming”
+            // Update UI for “streaming”
             display.src = piURL + "/video_feed";
             processBtn.style.display = "inline-block";
             startStopBtn.textContent = "STOP";
@@ -452,24 +551,36 @@
         startStopBtn.disabled = false;
       };
 
-      forceClearBtn.onclick = () => {
-        streaming = false;
-        display.src = "";
-        processBtn.style.display = "none";
-        startStopBtn.textContent = "START";
-        overlay.style.display = "none";
-        results.style.display = "none";
-        liveSection.style.display = "flex";
+      forceClearBtn.onclick = async () => {
+        // tell Flask to stop the camera if it’s still running
+        try {
+          await fetch(piURL + "/stop", { method: "POST" });
+        } catch (e) {
+          console.warn("Failed to notify server to stop camera:", e);
+        }
+        // reload the page
+        window.location.reload();
       };
 
       processBtn.onclick = async () => {
         processBtn.disabled = true;
-        const coords = {
-          x1: +inputs.x1.value,
-          y1: +inputs.y1.value,
-          x2: +inputs.x2.value,
-          y2: +inputs.y2.value,
-        };
+
+        // Read the user inputs (these are relative to the flipped display)
+        const x1_display = +inputs.x1.value;
+        const x2_display = +inputs.x2.value;
+        const y1 = +inputs.y1.value;
+        const y2 = +inputs.y2.value;
+
+        // Determine the width of your display (should match the camera width, e.g. 640px)
+        const displayWidth = display.clientWidth;
+
+        // Mirror them:
+        const x1 = displayWidth - x2_display;
+        const x2 = displayWidth - x1_display;
+
+        // Now send flipped coords to the server
+        const coords = { x1, y1, x2, y2 };
+
         try {
           const res = await fetch(piURL + "/capture", {
             method: "POST",
@@ -484,9 +595,9 @@
               "data:image/png;base64," + j.cropped;
             document.getElementById("spectrumImg").src =
               "data:image/png;base64," + j.spectrum;
-            document.getElementById("dataText").value = j.data;
             liveSection.style.display = "none";
             results.style.display = "block";
+            startStopBtn.style.display = processBtn.style.display = "none";
           }
         } catch {
           alert("Cannot reach camera server");

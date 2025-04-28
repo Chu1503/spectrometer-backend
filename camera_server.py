@@ -81,7 +81,7 @@ def smooth_array(arr, window_size=9):
 def process_image(crop):
     # calibration constants
     a = 3.553578
-    b = 304.797351
+    b = 301.797351
     # a = -4.361064
     # b = 810.141268
 
@@ -93,59 +93,62 @@ def process_image(crop):
     smooth = smooth_array(intensity, window_size=9)
 
     # wavelengths axis
-    pixels      = np.arange(len(smooth))
+    pixels = np.arange(len(smooth))
     wavelengths = a * pixels + b
 
-    # find peaks in 400–700 nm
+    # find peaks between 400–700 nm where intensity > 200
     peaks = [
-        i for i in range(1, len(smooth)-1)
-        if smooth[i] > smooth[i-1]
-        and smooth[i] > smooth[i+1]
-        and 400 <= (a*i + b) <= 700
+        i for i in range(1, len(smooth) - 1)
+        if smooth[i] > smooth[i - 1]
+        and smooth[i] > smooth[i + 1]
+        and smooth[i] > 200
+        and 400 <= (a * i + b) <= 700
     ]
 
-    # pick highest in each 25 nm window
+    # pick highest peak per 25 nm window
     selected = []
     for i in sorted(peaks, key=lambda i: smooth[i], reverse=True):
-        wl = a*i + b
-        if all(abs(wl - (a*j + b)) >= 25 for j in selected):
+        wl = a * i + b
+        if all(abs(wl - (a * j + b)) >= 25 for j in selected):
             selected.append(i)
-    selected.sort(key=lambda i: a*i + b)
+    selected.sort(key=lambda i: a * i + b)
 
-    # prepare raw-data text sorted by ascending λ
-    data_pts = [(w, v) for w, v in zip(wavelengths, smooth) if 400 <= w <= 700]
+    # prepare raw-data text for 300–800 nm
+    data_pts = [(w, v) for w, v in zip(wavelengths, smooth) if 300 <= w <= 800]
     data_pts.sort(key=lambda x: x[0])
-    lines = [" nm      %", "------------"] + [f"{w:.1f}\t{v:.1f}" for w,v in data_pts]
+    lines = [" nm      %", "------------"] + [f"{w:.1f}\t{v:.1f}" for w, v in data_pts]
     data_str = "\n".join(lines)
 
-    # plotting
-    fig, ax = plt.subplots(figsize=(8,4))
-    ax.plot(wavelengths, smooth, color='black', linewidth=1.2)
-    ax.scatter([a*i + b for i in selected],
-               [smooth[i] for i in selected],
-               color='red', s=40, zorder=5)
+    # plotting only 350–750 nm
+    fig, ax = plt.subplots(figsize=(8, 4))
+    mask = (wavelengths >= 350) & (wavelengths <= 750)
+    ax.plot(wavelengths[mask], smooth[mask], color='black', linewidth=1.2)
+    ax.scatter(
+        [a * i + b for i in selected],
+        [smooth[i] for i in selected],
+        color='red',
+        s=40,
+        zorder=5
+    )
 
-    # X axis: 350→750 nm, ticks every 25 nm
+    # X axis settings
     ax.set_xlim(350, 750)
     ax.set_xticks(np.arange(350, 751, 25))
     ax.set_xlabel("Wavelength (nm)")
 
-    # Y axis: 0 → 10% above max intensity
-    y_max = smooth.max() * 1.10
+    # Y axis settings
+    y_max = smooth[mask].max() * 1.10
     ax.set_ylim(0, y_max)
     ax.set_ylabel("Intensity")
 
     ax.set_title("")
     ax.grid(True, linestyle="--", alpha=0.5)
 
-    # legend below
+    # legend
     legend_text = "Peaks: " + ", ".join(
-        f"{(a*i+b):.1f} nm ({smooth[i]:.0f})" for i in selected
+        f"{(a * i + b):.1f} nm ({smooth[i]:.0f})" for i in selected
     )
-    ax.legend([legend_text],
-              loc='upper center',
-              bbox_to_anchor=(0.5, -0.15),
-              fontsize=10)
+    ax.legend([legend_text], loc='upper center', bbox_to_anchor=(0.5, -0.15), fontsize=10)
 
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.25)

@@ -454,7 +454,7 @@
     </div>
 
     <script>
-      const piURL = "http://192.168.0.141:5001";
+      const piURL = "http://10.252.40.146:5001";
       const startStopBtn = document.getElementById("startStopBtn");
       const processBtn = document.getElementById("processBtn");
       const forceClearBtn = document.getElementById("forceClearBtn");
@@ -463,6 +463,9 @@
       const liveSection = document.getElementById("liveSection");
       const results = document.getElementById("results");
       const videoContainer = document.querySelector(".video-container");
+
+      // store the raw data text for download
+      let lastRawData = "";
 
       let streaming = false;
       const inputs = {
@@ -473,8 +476,8 @@
       };
 
       function drawBox() {
-        if (!streaming) return; // only draw when streaming
-        overlay.style.display = "block"; // ensure overlay is visible
+        if (!streaming) return;
+        overlay.style.display = "block";
         const ctx = overlay.getContext("2d");
         const w = display.clientWidth,
           h = display.clientHeight;
@@ -496,29 +499,22 @@
 
         if (!streaming) {
           try {
-            // 1) Try to start
             let res = await fetch(piURL + "/start", { method: "POST" });
             let j = await res.json();
-
             if (res.ok && j.status === "started") {
-              // Started cleanly
               streaming = true;
             } else {
               await fetch(piURL + "/stop", { method: "POST" }).catch(() => {});
               res = await fetch(piURL + "/start", { method: "POST" });
               j = await res.json();
-
               if (res.ok && j.status === "started") {
                 streaming = true;
               } else {
-                // still failed; show actual reason
                 alert("Start error: " + (j.message || j.status || res.status));
                 startStopBtn.disabled = false;
                 return;
               }
             }
-
-            // Update UI for “streaming”
             display.src = piURL + "/video_feed";
             processBtn.style.display = "inline-block";
             startStopBtn.textContent = "STOP";
@@ -529,7 +525,6 @@
             alert("Cannot reach camera server");
           }
         } else {
-          // STOP
           try {
             const res = await fetch(piURL + "/stop", { method: "POST" });
             if (res.ok) {
@@ -552,33 +547,28 @@
       };
 
       forceClearBtn.onclick = async () => {
-        // tell Flask to stop the camera if it’s still running
         try {
           await fetch(piURL + "/stop", { method: "POST" });
         } catch (e) {
           console.warn("Failed to notify server to stop camera:", e);
         }
-        // reload the page
         window.location.reload();
       };
 
       processBtn.onclick = async () => {
         processBtn.disabled = true;
 
-        // Read the user inputs (these are relative to the flipped display)
+        // Read the user inputs (relative to the flipped preview)
         const x1_display = +inputs.x1.value;
         const x2_display = +inputs.x2.value;
         const y1 = +inputs.y1.value;
         const y2 = +inputs.y2.value;
 
-        // Determine the width of your display (should match the camera width, e.g. 640px)
+        // Mirror them back to server coords
         const displayWidth = display.clientWidth;
-
-        // Mirror them:
         const x1 = displayWidth - x2_display;
         const x2 = displayWidth - x1_display;
 
-        // Now send flipped coords to the server
         const coords = { x1, y1, x2, y2 };
 
         try {
@@ -591,10 +581,16 @@
           if (!res.ok) {
             alert("Process error: " + (j.message || res.status));
           } else {
+            // set image sources
             document.getElementById("croppedImg").src =
               "data:image/png;base64," + j.cropped;
             document.getElementById("spectrumImg").src =
               "data:image/png;base64," + j.spectrum;
+
+            // store raw data for download
+            lastRawData = j.data;
+
+            // switch views
             liveSection.style.display = "none";
             results.style.display = "block";
             startStopBtn.style.display = processBtn.style.display = "none";
@@ -605,10 +601,54 @@
         processBtn.disabled = false;
       };
 
-      // redraw when coords change
+      // redraw on input change
       Object.values(inputs).forEach((i) =>
         i.addEventListener("input", drawBox)
       );
+
+      // save cropped image
+      document.getElementById("saveCropBtn").onclick = () => {
+        const img = document.getElementById("croppedImg");
+        if (!img.src) return alert("No cropped image to save");
+        const a = document.createElement("a");
+        a.href = img.src;
+        let fn =
+          document.getElementById("cropFilenameInput").value.trim() ||
+          "crop.png";
+        if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
+        a.download = fn;
+        a.click();
+      };
+
+      // save spectrum image
+      document.getElementById("saveSpecBtn").onclick = () => {
+        const img = document.getElementById("spectrumImg");
+        if (!img.src) return alert("No spectrum image to save");
+        const a = document.createElement("a");
+        a.href = img.src;
+        let fn =
+          document.getElementById("specFilenameInput").value.trim() ||
+          "spectrum.png";
+        if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
+        a.download = fn;
+        a.click();
+      };
+
+      // save raw data text
+      document.getElementById("saveDataBtn").onclick = () => {
+        if (!lastRawData) return alert("No data to save");
+        let fn =
+          document.getElementById("dataFilenameInput").value.trim() ||
+          "data.txt";
+        if (!/\.[a-z]+$/i.test(fn)) fn += ".txt";
+        const blob = new Blob([lastRawData], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fn;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
     </script>
   </body>
 </html>

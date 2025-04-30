@@ -80,10 +80,10 @@ def smooth_array(arr, window_size=9):
 
 def process_image(crop):
     # calibration constants
-    a = 3.553578
-    b = 301.797351
-    # a = -4.361064
-    # b = 810.141268
+    # a = 3.553578
+    # b = 301.797351
+    a = 4.483335
+    b = 253.462921
 
     # grayscale & sum columns
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)

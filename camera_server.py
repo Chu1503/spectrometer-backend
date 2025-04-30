@@ -194,11 +194,9 @@ def capture():
     y1, y2 = max(0, y1), min(h, y2)
     crop = snap[y1:y2, x1:x2]
 
-    # Squeeze vertically: reduce height, keep width
     height, width = crop.shape[:2]
     squeezed_crop = cv2.resize(crop, (width, int(height * 0.5)), interpolation=cv2.INTER_AREA)
 
-    # Optional: resize back to original height to preserve output shape (can remove if not needed)
     crop = cv2.resize(squeezed_crop, (width, height), interpolation=cv2.INTER_LINEAR)
 
     try:

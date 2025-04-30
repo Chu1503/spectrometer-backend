@@ -160,13 +160,16 @@ def process_image(crop):
     spectrum_b64 = base64.b64encode(buf.read()).decode('utf-8')
     plt.close(fig)
 
-    kernel = np.array([[0, -1, 0],
-                    [-1, 5, -1],
-                    [0, -1, 0]], dtype=np.float32)
-    sharpened = cv2.filter2D(crop, -1, kernel)
-
-    _, imgbuf = cv2.imencode('.png', sharpened)
+    _, imgbuf = cv2.imencode('.png', crop)
     cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
+
+    # kernel = np.array([[0, -1, 0],
+    #                 [-1, 5, -1],
+    #                 [0, -1, 0]], dtype=np.float32)
+    # sharpened = cv2.filter2D(crop, -1, kernel)
+
+    # _, imgbuf = cv2.imencode('.png', sharpened)
+    # cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
 
     return cropped_b64, spectrum_b64, data_str
 
@@ -190,6 +193,13 @@ def capture():
     x1, x2 = max(0, x1), min(w, x2)
     y1, y2 = max(0, y1), min(h, y2)
     crop = snap[y1:y2, x1:x2]
+
+    # Squeeze vertically: reduce height, keep width
+    height, width = crop.shape[:2]
+    squeezed_crop = cv2.resize(crop, (width, int(height * 0.5)), interpolation=cv2.INTER_AREA)
+
+    # Optional: resize back to original height to preserve output shape (can remove if not needed)
+    crop = cv2.resize(squeezed_crop, (width, height), interpolation=cv2.INTER_LINEAR)
 
     try:
         cr, sp, dt = process_image(crop)

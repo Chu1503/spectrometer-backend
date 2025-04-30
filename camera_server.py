@@ -160,7 +160,12 @@ def process_image(crop):
     spectrum_b64 = base64.b64encode(buf.read()).decode('utf-8')
     plt.close(fig)
 
-    _, imgbuf = cv2.imencode('.png', crop)
+    kernel = np.array([[0, -1, 0],
+                    [-1, 5, -1],
+                    [0, -1, 0]], dtype=np.float32)
+    sharpened = cv2.filter2D(crop, -1, kernel)
+
+    _, imgbuf = cv2.imencode('.png', sharpened)
     cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
 
     return cropped_b64, spectrum_b64, data_str

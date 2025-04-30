@@ -73,7 +73,7 @@
       #saveSpecBtn {
         width: 150px;
       }
-      #saveDataBtn {
+      #saveAllBtn {
         width: 150px;
       }
       /* video + controls */
@@ -401,7 +401,7 @@
           <img id="croppedImg" alt="Cropped" class="result-thumb" />
           <div class="result-controls">
             <input type="text" id="cropFilenameInput" placeholder="crop.png" />
-            <button id="saveCropBtn">Save</button>
+            <!-- <button id="saveCropBtn">Save</button> -->
           </div>
         </div>
 
@@ -414,7 +414,7 @@
               id="specFilenameInput"
               placeholder="spectrum.png"
             />
-            <button id="saveSpecBtn">Save</button>
+            <!-- <button id="saveSpecBtn">Save</button> -->
           </div>
         </div>
 
@@ -429,11 +429,13 @@
           <h2>Raw Data</h2>
           <div class="result-controls">
             <input type="text" id="dataFilenameInput" placeholder="data.txt" />
-            <button id="saveDataBtn">Save</button>
+            <!-- <button id="saveDataBtn">Save</button> -->
           </div>
         </div>
+        <div style="margin-top: 20px;">
+          <button id="saveAllBtn">Save All</button>
+        </div>        
       </div>
-
       <!-- CLEAR button always at the bottom -->
       <div class="clear-container">
         <button id="forceClearBtn">CLEAR</button>
@@ -606,48 +608,53 @@
         i.addEventListener("input", drawBox)
       );
 
-      // save cropped image
-      document.getElementById("saveCropBtn").onclick = () => {
-        const img = document.getElementById("croppedImg");
-        if (!img.src) return alert("No cropped image to save");
-        const a = document.createElement("a");
-        a.href = img.src;
-        let fn =
-          document.getElementById("cropFilenameInput").value.trim() ||
-          "crop.png";
-        if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
-        a.download = fn;
-        a.click();
-      };
+      document.getElementById("saveAllBtn").onclick = () => {
+        // Save cropped image
+        const cropName = document
+          .getElementById("cropFilenameInput")
+          .value.trim();
+        const cropImg = document.getElementById("croppedImg");
+        if (cropName && cropImg.src) {
+          let fn = cropName;
+          if (!/^c[-_]/i.test(fn)) fn = "c-" + fn;
+          if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
+          const a = document.createElement("a");
+          a.href = cropImg.src;
+          a.download = fn;
+          a.click();
+        }
 
-      // save spectrum image
-      document.getElementById("saveSpecBtn").onclick = () => {
-        const img = document.getElementById("spectrumImg");
-        if (!img.src) return alert("No spectrum image to save");
-        const a = document.createElement("a");
-        a.href = img.src;
-        let fn =
-          document.getElementById("specFilenameInput").value.trim() ||
-          "spectrum.png";
-        if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
-        a.download = fn;
-        a.click();
-      };
+        // Save spectrum image
+        const specName = document
+          .getElementById("specFilenameInput")
+          .value.trim();
+        const specImg = document.getElementById("spectrumImg");
+        if (specName && specImg.src) {
+          let fn = specName;
+          if (!/^s[-_]/i.test(fn)) fn = "s-" + fn;
+          if (!/\.[a-z]+$/i.test(fn)) fn += ".png";
+          const a = document.createElement("a");
+          a.href = specImg.src;
+          a.download = fn;
+          a.click();
+        }
 
-      // save raw data text
-      document.getElementById("saveDataBtn").onclick = () => {
-        if (!lastRawData) return alert("No data to save");
-        let fn =
-          document.getElementById("dataFilenameInput").value.trim() ||
-          "data.txt";
-        if (!/\.[a-z]+$/i.test(fn)) fn += ".txt";
-        const blob = new Blob([lastRawData], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fn;
-        a.click();
-        URL.revokeObjectURL(url);
+        // Save raw data
+        const dataName = document
+          .getElementById("dataFilenameInput")
+          .value.trim();
+        if (dataName && lastRawData) {
+          let fn = dataName;
+          if (!/^t[-_]/i.test(fn)) fn = "t-" + fn;
+          if (!/\.[a-z]+$/i.test(fn)) fn += ".txt";
+          const blob = new Blob([lastRawData], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fn;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
       };
     </script>
   </body>

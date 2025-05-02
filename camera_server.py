@@ -121,7 +121,7 @@ def process_image(crop):
 
     # plotting only 350–750 nm
     fig, ax = plt.subplots(figsize=(8, 4))
-    mask = (wavelengths >= 350) & (wavelengths <= 750)
+    mask = (wavelengths >= 300) & (wavelengths <= 800)
     ax.plot(wavelengths[mask], smooth[mask], color='black', linewidth=1.2)
     ax.scatter(
         [a * i + b for i in selected],

@@ -1,0 +1,16 @@
+sudo tee /etc/systemd/system/camera-server.service > /dev/null <<EOF
+[Unit]
+Description=Spectrometer Camera Server
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/spectrometer-backend
+ExecStart=/usr/bin/python3 /home/pi/spectrometer-backend/camera_server.py
+Restart=always
+StandardOutput=append:/var/log/camera_server.log
+StandardError=append:/var/log/camera_server.log
+
+[Install]
+WantedBy=multi-user.target
+EOF

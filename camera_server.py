@@ -1,5 +1,6 @@
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
+from flask_cors import cross_origin
 from picamera2 import Picamera2
 import threading, time
 import cv2
@@ -42,7 +43,8 @@ def gen_frames():
         else:
             time.sleep(0.1)
 
-@app.route('/start', methods=['POST'])
+@app.route("/start", methods=["POST", "OPTIONS"])
+@cross_origin() 
 def start():
     global picam2, running
     if running:
@@ -58,7 +60,8 @@ def start():
     except Exception as e:
         return jsonify(status="error", message=str(e)), 500
 
-@app.route('/stop', methods=['POST'])
+@app.route("/stop", methods=["POST", "OPTIONS"])
+@cross_origin() 
 def stop():
     global picam2, running
     running = False
@@ -68,6 +71,7 @@ def stop():
     return jsonify(status="stopped")
 
 @app.route('/video_feed')
+@cross_origin() 
 def video_feed():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -173,7 +177,8 @@ def process_image(crop):
 
     return cropped_b64, spectrum_b64, data_str
 
-@app.route('/capture', methods=['POST'])
+@app.route("/capture", methods=["POST", "OPTIONS"])
+@cross_origin() 
 def capture():
     global frame
 
@@ -205,6 +210,19 @@ def capture():
     except Exception as e:
         # if something goes wrong in processing, send JSON error
         return jsonify(error=str(e)), 500
+    
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+# catch any preflight OPTIONS so flask will reply, not 404
+@app.route("/<path:any_path>", methods=["OPTIONS"])
+def handle_preflight(any_path):
+    return ("", 204)
+
 
 
 if __name__ == "__main__":

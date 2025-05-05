@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import io, base64
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 picam2 = None
 frame = None

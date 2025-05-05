@@ -456,7 +456,8 @@
     </div>
 
     <script>
-      const piURL = "http://192.168.0.141:5001";
+      const IS_LOCAL = location.hostname.startsWith("192.168.") || location.hostname === "localhost";
+      const piURL = IS_LOCAL ? "http://192.168.0.141:5001" : "";
       const startStopBtn = document.getElementById("startStopBtn");
       const processBtn = document.getElementById("processBtn");
       const forceClearBtn = document.getElementById("forceClearBtn");
@@ -659,3 +660,5 @@
     </script>
   </body>
 </html>
+
+<!-- http://localhost:8000/index.html -->

@@ -84,105 +84,82 @@ def smooth_array(arr, window_size=9):
 
 def process_image(crop):
     import pandas as pd
-    import traceback
     from scipy.signal import find_peaks
 
-    try:
-        print("[DEBUG] Starting image processing")
+    # calibration constants
+    a, b = 4.483335, 253.462921
 
-        # calibration constants
-        a = 4.483335
-        b = 253.462921
+    # guard against empty crop
+    if crop is None or crop.size == 0:
+        raise ValueError("Empty crop region")
 
-        # grayscale & sum columns
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        print("[DEBUG] Grayscale conversion complete")
+    # grayscale & sum columns
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    intensity = np.sum(gray, axis=0).astype(np.float32)
 
-        intensity = np.sum(gray, axis=0).astype(np.float32)
-        print(f"[DEBUG] Intensity array shape: {intensity.shape}")
+    # smooth
+    smooth = smooth_array(intensity, window_size=9)
 
-        # smooth
-        smooth = smooth_array(intensity, window_size=9)
-        print(f"[DEBUG] Smoothed intensity shape: {smooth.shape}")
+    # wavelengths axis
+    pixels = np.arange(len(smooth))
+    wavelengths = a * pixels + b
 
-        # wavelengths axis
-        pixels = np.arange(len(smooth))
-        wavelengths = a * pixels + b
+    # prepare raw-data text for 300–800 nm
+    data_pts = [(w, v) for w, v in zip(wavelengths, smooth) if 300 <= w <= 800]
+    data_pts.sort(key=lambda x: x[0])
+    lines = [" nm      %", "------------"] + [f"{w:.1f}\t{v:.1f}" for w, v in data_pts]
+    data_str = "\n".join(lines)
 
-        # prepare raw-data text for 300–800 nm
-        data_pts = [(w, v) for w, v in zip(wavelengths, smooth) if 300 <= w <= 800]
-        data_pts.sort(key=lambda x: x[0])
-        lines = [" nm      %", "------------"] + [f"{w:.1f}\t{v:.1f}" for w, v in data_pts]
-        data_str = "\n".join(lines)
-        print("[DEBUG] Raw data string prepared")
+    # build DataFrame for plotting range
+    df = pd.DataFrame({'nm': wavelengths, 'percentage': smooth})
+    df = df[(df.nm >= 350) & (df.nm <= 750)].reset_index(drop=True)
 
-        # dataframe for peak detection and plotting
-        df = pd.DataFrame({'nm': wavelengths, 'percentage': smooth})
-        df = df[(df["nm"] >= 350) & (df["nm"] <= 750)].copy()
-        print(f"[DEBUG] Trimmed DataFrame shape: {df.shape}")
+    # find raw peaks
+    peaks, _ = find_peaks(df.percentage.to_numpy(), height=60)
+    peak_positions = df.iloc[peaks]
 
-        peaks, _ = find_peaks(df["percentage"], height=60)
-        print(f"[DEBUG] Detected {len(peaks)} peaks")
+    # filter peaks: only keep the strongest per 25 nm window
+    filtered = []
+    for _, row in peak_positions.iterrows():
+        if not filtered or abs(row.nm - filtered[-1].nm) > 25:
+            filtered.append(row)
+        elif row.percentage > filtered[-1].percentage:
+            filtered[-1] = row
+    filtered_peaks = pd.DataFrame(filtered)
 
-        peak_positions = df.iloc[peaks].reset_index(drop=True)
+    # plot
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(df.nm, df.percentage, color='black', linewidth=1.2)
+    if not filtered_peaks.empty:
+        ax.scatter(filtered_peaks.nm, filtered_peaks.percentage, s=40, zorder=5)
+        legend_txt = ", ".join(
+            f"{w:.1f} nm ({int(v)})"
+            for w, v in zip(filtered_peaks.nm, filtered_peaks.percentage)
+        )
+        ax.legend([f"Peaks: {legend_txt}"], loc='upper center',
+                  bbox_to_anchor=(0.5, -0.15), fontsize=10)
+    ax.set_xlim(350, 750)
+    ax.set_xticks(np.arange(350, 751, 25))
+    ax.set_xlabel("Wavelength (nm)", weight='bold')
+    ax.set_ylabel("Intensity", weight='bold')
+    ax.grid(True, linestyle="--", alpha=0.5)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2)
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.25)
 
-        def filter_peaks(peak_df, threshold=25):
-            peak_df = peak_df.sort_values(by='nm')
-            filtered = []
-            for _, row in peak_df.iterrows():
-                if not filtered or (row['nm'] - filtered[-1]['nm']) > threshold:
-                    filtered.append(row)
-                else:
-                    if row['percentage'] > filtered[-1]['percentage']:
-                        filtered[-1] = row
-            return pd.DataFrame(filtered)
+    # encode spectrum plot
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=200)
+    buf.seek(0)
+    spectrum_b64 = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close(fig)
 
-        filtered_peaks = filter_peaks(peak_positions)
-        print(f"[DEBUG] Filtered to {len(filtered_peaks)} peaks")
+    # encode crop
+    _, imgbuf = cv2.imencode('.png', crop)
+    cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
 
-        # plot
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(df["nm"], df["percentage"], color='black', linewidth=1.2)
-        ax.scatter(filtered_peaks["nm"], filtered_peaks["percentage"], color='red', s=40, zorder=5)
-
-        ax.set_xlim(350, 750)
-        ax.set_xticks(np.arange(350, 751, 25))
-        ax.set_xlabel("Wavelength (nm)", fontsize=12, weight='bold')
-        ax.set_ylabel("Intensity", fontsize=12, weight='bold')
-        ax.tick_params(width=2, length=6)
-        ax.grid(True, linestyle="--", alpha=0.5)
-        for spine in ax.spines.values():
-            spine.set_linewidth(2)
-
-        if not filtered_peaks.empty:
-            legend_text = "Peaks: " + ", ".join(
-                f"{row['nm']:.1f} nm ({row['percentage']:.0f})"
-                for _, row in filtered_peaks.iterrows()
-            )
-            ax.legend([legend_text], loc='upper center', bbox_to_anchor=(0.5, -0.15), fontsize=10)
-
-        fig.tight_layout()
-        fig.subplots_adjust(bottom=0.25)
-
-        # encode plot
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=200)
-        buf.seek(0)
-        spectrum_b64 = base64.b64encode(buf.read()).decode('utf-8')
-        plt.close(fig)
-        print("[DEBUG] Spectrum plot encoding complete")
-
-        # encode crop
-        _, imgbuf = cv2.imencode('.png', crop)
-        cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
-        print("[DEBUG] Cropped image encoding complete")
-
-        return cropped_b64, spectrum_b64, data_str
-
-    except Exception as e:
-        print("[ERROR] Exception in process_image:")
-        traceback.print_exc()
-        raise e
+    return cropped_b64, spectrum_b64, data_str
 
 @app.route("/capture", methods=["POST"])
 @cross_origin() 

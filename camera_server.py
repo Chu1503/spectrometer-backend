@@ -83,9 +83,10 @@ def smooth_array(arr, window_size=9):
     return np.convolve(arr, kernel, mode='same')
 
 def process_image(crop):
+    import pandas as pd
+    from scipy.signal import find_peaks
+
     # calibration constants
-    # a = 3.553578
-    # b = 301.797351
     a = 4.483335
     b = 253.462921
 
@@ -123,36 +124,49 @@ def process_image(crop):
     lines = [" nm      %", "------------"] + [f"{w:.1f}\t{v:.1f}" for w, v in data_pts]
     data_str = "\n".join(lines)
 
-    # plotting only 350–750 nm
-    fig, ax = plt.subplots(figsize=(8, 4))
-    mask = (wavelengths >= 300) & (wavelengths <= 800)
-    ax.plot(wavelengths[mask], smooth[mask], color='black', linewidth=1.2)
-    ax.scatter(
-        [a * i + b for i in selected],
-        [smooth[i] for i in selected],
-        color='red',
-        s=40,
-        zorder=5
-    )
+    # --- REPLACED PLOTTING SECTION BELOW ---
 
-    # X axis settings
+    # prepare DataFrame for new peak plotting
+    df = pd.DataFrame({'nm': wavelengths, 'percentage': smooth})
+    df = df[(df["nm"] >= 350) & (df["nm"] <= 750)].copy()
+
+    peaks, _ = find_peaks(df["percentage"], height=60)
+    peak_positions = df.iloc[peaks].reset_index(drop=True)
+
+    def filter_peaks(peak_df, threshold=25):
+        peak_df = peak_df.sort_values(by='nm')
+        filtered = []
+        for _, row in peak_df.iterrows():
+            if not filtered or (row['nm'] - filtered[-1]['nm']) > threshold:
+                filtered.append(row)
+            else:
+                if row['percentage'] > filtered[-1]['percentage']:
+                    filtered[-1] = row
+        return pd.DataFrame(filtered)
+
+    filtered_peaks = filter_peaks(peak_positions)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(df["nm"], df["percentage"], color='black', linewidth=1.2)
+    ax.scatter(filtered_peaks["nm"], filtered_peaks["percentage"], color='red', s=40, zorder=5)
+
     ax.set_xlim(350, 750)
     ax.set_xticks(np.arange(350, 751, 25))
-    ax.set_xlabel("Wavelength (nm)")
-
-    # Y axis settings
-    y_max = smooth[mask].max() * 1.10
-    ax.set_ylim(0, y_max)
-    ax.set_ylabel("Intensity")
-
-    ax.set_title("")
+    ax.set_xlabel("Wavelength (nm)", fontsize=12, weight='bold')
+    ax.set_ylabel("Intensity", fontsize=12, weight='bold')
+    ax.tick_params(width=2, length=6)
     ax.grid(True, linestyle="--", alpha=0.5)
 
-    # legend
-    legend_text = "Peaks: " + ", ".join(
-        f"{(a * i + b):.1f} nm ({smooth[i]:.0f})" for i in selected
-    )
-    ax.legend([legend_text], loc='upper center', bbox_to_anchor=(0.5, -0.15), fontsize=10)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2)
+
+    # legend with filtered peaks
+    if not filtered_peaks.empty:
+        legend_text = "Peaks: " + ", ".join(
+            f"{row['nm']:.1f} nm ({row['percentage']:.0f})"
+            for _, row in filtered_peaks.iterrows()
+        )
+        ax.legend([legend_text], loc='upper center', bbox_to_anchor=(0.5, -0.15), fontsize=10)
 
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.25)
@@ -166,14 +180,6 @@ def process_image(crop):
 
     _, imgbuf = cv2.imencode('.png', crop)
     cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
-
-    # kernel = np.array([[0, -1, 0],
-    #                 [-1, 5, -1],
-    #                 [0, -1, 0]], dtype=np.float32)
-    # sharpened = cv2.filter2D(crop, -1, kernel)
-
-    # _, imgbuf = cv2.imencode('.png', sharpened)
-    # cropped_b64 = base64.b64encode(imgbuf).decode('utf-8')
 
     return cropped_b64, spectrum_b64, data_str
 

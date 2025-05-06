@@ -62,29 +62,60 @@ def gen_frames():
             time.sleep(0.1)
 
 def plot_spectra(file_details, labels, x_min, x_max, height=60):
-    fig, ax = plt.subplots(figsize=(16, 6))
-    for (path, color), label in zip(file_details, labels):
-        data = (
-            pd.read_csv(path, sep=r'\s+', header=None,
-                        names=["nm","percentage"], engine="python")
-              .dropna()
-              .astype(float)
-        )
-        data = data[(data.nm >= x_min) & (data.nm <= x_max)]
-        peaks, props = find_peaks(data.percentage, height=height)
-        df_peaks = data.iloc[peaks]
-        df_filt = filter_peaks(df_peaks, threshold=25)
+    plt.figure(figsize=(16, 6))
+    max_intensities = []
 
-        ax.plot(data.nm, data.percentage, label=label, color=color, lw=2.5)
-        ax.scatter(df_filt.nm, df_filt.percentage, color=color, zorder=5)
+    for idx, (file_path, color) in enumerate(file_details):
+        try:
+            data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['nm', 'percentage'], engine='python')
+            data = data.dropna()
+            data['nm'] = pd.to_numeric(data['nm'], errors='coerce')
+            data['percentage'] = pd.to_numeric(data['percentage'], errors='coerce')
+            data = data.dropna()
 
-    ax.set_xlim(x_min, x_max)
-    ax.set_xlabel("Wavelength (nm)", weight="bold")
-    ax.set_ylabel("Intensity",    weight="bold")
-    ax.legend(loc="upper right")
-    ax.grid(True, alpha=0.3, linestyle="--")
-    plt.tight_layout()
-    return fig
+            data = data[(data['nm'] >= x_min) & (data['nm'] <= x_max)]
+
+            max_intensity = data['percentage'].max()
+            max_intensities.append(max_intensity)
+
+            peaks, _ = find_peaks(data['percentage'], height=height)
+            peak_positions = data.iloc[peaks]
+            filtered_peaks = filter_peaks(peak_positions, threshold=25)
+
+            peak_labels = ", ".join(
+                f"{row['nm']:.1f} nm ({row['percentage']:.1f})"
+                for _, row in filtered_peaks.iterrows()
+            )
+
+            plt.plot(data['nm'], data['percentage'], label=labels[idx], color=color, linewidth=2.5)
+            plt.scatter(filtered_peaks['nm'], filtered_peaks['percentage'], color=color, marker='o', zorder=5)
+
+            print(f"{labels[idx]} (Peaks: {peak_labels})" if peak_labels else labels[idx])
+
+        except Exception as e:
+            print(f"Error processing file {file_path}: {e}")
+
+    plt.xlabel("Wavelength (nm)", fontsize=15, weight='bold')
+    plt.ylabel("Intensity", fontsize=15, weight='bold')
+    plt.xlim(x_min, x_max)
+
+    x_ticks = np.arange(int(x_min // 25) * 25, int(x_max // 25) * 25 + 25, 25)
+    plt.xticks(x_ticks, fontsize=16, weight='bold')
+    plt.yticks(fontsize=16, weight='bold')
+
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_linewidth(2)
+
+    plt.tick_params(width=2, length=6)
+    plt.axhline(0, color='black', linewidth=1, linestyle='-')
+
+    plt.legend(title="", loc='upper right', fontsize=14, prop={'weight': 'bold', 'size': 14})
+    plt.tight_layout(pad=2.0)
+
+    print("\nI =", [round(val, 1) for val in max_intensities])
+    return plt.gcf()
+
 
 @app.route("/start", methods=["POST", "OPTIONS"])
 @cross_origin() 

@@ -9,14 +9,32 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import io, base64
+import os
+import pandas as pd
+from scipy.signal import find_peaks
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 picam2 = None
 frame = None
 lock = threading.Lock()
 running = False
+
+def filter_peaks(df_peaks, threshold=60):
+    df = df_peaks.sort_values("nm").copy()
+    filtered = []
+    for _, row in df.iterrows():
+        if not filtered or (row.nm - filtered[-1].nm) > threshold:
+            filtered.append(row)
+        else:
+            if row.percentage > filtered[-1].percentage:
+                filtered[-1] = row
+    return pd.DataFrame(filtered)
 
 def capture_frames():
     global frame, running
@@ -42,6 +60,31 @@ def gen_frames():
                    b'\r\n')
         else:
             time.sleep(0.1)
+
+def plot_spectra(file_details, labels, x_min, x_max, height=60):
+    fig, ax = plt.subplots(figsize=(16, 6))
+    for (path, color), label in zip(file_details, labels):
+        data = (
+            pd.read_csv(path, sep=r'\s+', header=None,
+                        names=["nm","percentage"], engine="python")
+              .dropna()
+              .astype(float)
+        )
+        data = data[(data.nm >= x_min) & (data.nm <= x_max)]
+        peaks, props = find_peaks(data.percentage, height=height)
+        df_peaks = data.iloc[peaks]
+        df_filt = filter_peaks(df_peaks, threshold=25)
+
+        ax.plot(data.nm, data.percentage, label=label, color=color, lw=2.5)
+        ax.scatter(df_filt.nm, df_filt.percentage, color=color, zorder=5)
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_xlabel("Wavelength (nm)", weight="bold")
+    ax.set_ylabel("Intensity",    weight="bold")
+    ax.legend(loc="upper right")
+    ax.grid(True, alpha=0.3, linestyle="--")
+    plt.tight_layout()
+    return fig
 
 @app.route("/start", methods=["POST", "OPTIONS"])
 @cross_origin() 
@@ -75,6 +118,39 @@ def stop():
 def video_feed():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route("/plot", methods=["POST"])
+@cross_origin()
+def plot_endpoint():
+    """
+    Expects:
+      - form “files”[]: one or more .txt uploads
+      - form xmin, xmax
+    Returns JSON { plot: "<base64-png>" }
+    """
+    files = request.files.getlist("files")
+    xmin  = float(request.form.get("xmin", 400))
+    xmax  = float(request.form.get("xmax", 625))
+
+    # build file_details + labels
+    COLORS = ["orange","red","green","blue","violet","lime","teal","cyan","black"]
+    file_details, labels = [], []
+    for i, f in enumerate(files):
+        fname = secure_filename(f.filename)
+        dst   = os.path.join(UPLOAD_FOLDER, fname)
+        f.save(dst)
+        file_details.append((dst, COLORS[i % len(COLORS)]))
+        labels.append(fname.rsplit(".",1)[0])
+
+    # call your plot fn
+    fig = plot_spectra(file_details, labels, xmin, xmax)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    buf.seek(0)
+    img_b64 = base64.b64encode(buf.read()).decode("utf-8")
+    plt.close(fig)
+    return jsonify(plot=img_b64)
 
 def smooth_array(arr, window_size=9):
     if window_size < 2:

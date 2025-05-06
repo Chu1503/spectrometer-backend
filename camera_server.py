@@ -43,7 +43,7 @@ def gen_frames():
         else:
             time.sleep(0.1)
 
-@app.route("/start", methods=["POST", "OPTIONS"])
+@app.route("/start", methods=["POST"])
 @cross_origin() 
 def start():
     global picam2, running
@@ -60,7 +60,7 @@ def start():
     except Exception as e:
         return jsonify(status="error", message=str(e)), 500
 
-@app.route("/stop", methods=["POST", "OPTIONS"])
+@app.route("/stop", methods=["POST"])
 @cross_origin() 
 def stop():
     global picam2, running
@@ -184,7 +184,7 @@ def process_image(crop):
         traceback.print_exc()
         raise e
 
-@app.route("/capture", methods=["POST", "OPTIONS"])
+@app.route("/capture", methods=["POST"])
 @cross_origin() 
 def capture():
     global frame
@@ -225,7 +225,6 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
 
-# catch any preflight OPTIONS so flask will reply, not 404
 @app.route("/<path:any_path>", methods=["OPTIONS"])
 def handle_preflight(any_path):
     return ("", 204)

@@ -78,19 +78,8 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
             max_intensity = data['percentage'].max()
             max_intensities.append(max_intensity)
 
-            peaks, _ = find_peaks(data['percentage'], height=60000)
-            peak_positions = data.iloc[peaks]
-            filtered_peaks = filter_peaks(peak_positions, threshold=25)
-
-            peak_labels = ", ".join(
-                f"{row['nm']:.1f} nm ({row['percentage']:.1f})"
-                for _, row in filtered_peaks.iterrows()
-            )
-
+            # NO PEAK MARKERS
             plt.plot(data['nm'], data['percentage'], label=labels[idx], color=color, linewidth=2.5)
-            plt.scatter(filtered_peaks['nm'], filtered_peaks['percentage'], color=color, marker='o', zorder=5)
-
-            print(f"{labels[idx]} (Peaks: {peak_labels})" if peak_labels else labels[idx])
 
         except Exception as e:
             print(f"Error processing file {file_path}: {e}")
@@ -114,7 +103,8 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
     plt.tight_layout(pad=2.0)
 
     print("\nI =", [round(val, 1) for val in max_intensities])
-    return plt.gcf()
+    return plt.gcf(), [round(val, 1) for val in max_intensities]
+
 
 
 @app.route("/start", methods=["POST", "OPTIONS"])
@@ -153,43 +143,36 @@ def video_feed():
 @app.route("/plot", methods=["POST"])
 @cross_origin()
 def plot_endpoint():
-    """
-    Expects:
-      - form “files”[]: one or more .txt uploads
-      - form xmin, xmax
-    Returns JSON { plot: "<base64-png>" }
-    """
     files = request.files.getlist("files")
-    xmin  = float(request.form.get("xmin", 400))
-    xmax  = float(request.form.get("xmax", 625))
+    xmin = float(request.form.get("xmin", 400))
+    xmax = float(request.form.get("xmax", 625))
 
-    # build file_details + labels
-    COLORS = ["orange","red","green","blue","violet","lime","teal","cyan","black"]
+    COLORS = [
+    "orange", "red", "green", "blue", "violet",
+    "lime", "teal", "cyan", "magenta", "yellow",
+    "deeppink", "gold", "dodgerblue", "indigo", "darkorange"
+]
+
     file_details, labels = [], []
+    labels_input = request.form.getlist("labels")
+
     for i, f in enumerate(files):
         fname = secure_filename(f.filename)
-        dst   = os.path.join(UPLOAD_FOLDER, fname)
+        dst = os.path.join(UPLOAD_FOLDER, fname)
         f.save(dst)
         file_details.append((dst, COLORS[i % len(COLORS)]))
-        # labels.append(fname.rsplit(".",1)[0])
-        labels_input = request.form.getlist("labels")
-        for i, f in enumerate(files):
-            fname = secure_filename(f.filename)
-            dst = os.path.join(UPLOAD_FOLDER, fname)
-            f.save(dst)
-            file_details.append((dst, COLORS[i % len(COLORS)]))
-            labels.append(labels_input[i] if i < len(labels_input) else fname.rsplit(".", 1)[0])
+        labels.append(labels_input[i] if i < len(labels_input) else fname.rsplit(".", 1)[0])
 
-
-    # call your plot fn
-    fig = plot_spectra(file_details, labels, xmin, xmax)
+    fig, intensities = plot_spectra(file_details, labels, xmin, xmax)
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
     buf.seek(0)
     img_b64 = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
-    return jsonify(plot=img_b64)
+
+    return jsonify(plot=img_b64, intensities=intensities)
+
 
 def smooth_array(arr, window_size=9):
     if window_size < 2:

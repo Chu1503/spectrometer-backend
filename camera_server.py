@@ -66,7 +66,6 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
     max_intensities = []
 
     for idx, (file_path, color) in enumerate(file_details):
-        # ←── NEW: load & clean
         data = pd.read_csv(
             file_path,
             sep=r'\s+',
@@ -81,7 +80,6 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
         # filter to x-range
         data = data[(data['nm'] >= x_min) & (data['nm'] <= x_max)]
 
-        # now it's safe to compute max and plot
         max_intensity = data['percentage'].max()
         max_intensities.append(max_intensity)
         ax.plot(
@@ -92,9 +90,8 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
             linewidth=2.5
         )
 
-    # only left & bottom spines
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(2)
+    ax.spines['right'].set_visible(2)
     ax.spines['bottom'].set_linewidth(2)
     ax.spines['left'].set_linewidth(2)
 
@@ -104,6 +101,8 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
     ax.set_ylabel("Intensity", fontsize=15, weight='bold')
     ticks = np.arange(int(x_min//25)*25, int(x_max//25)*25 + 25, 25)
     ax.set_xticks(ticks)
+    plt.xticks(fontsize=16, weight='bold')
+    plt.yticks(fontsize=16, weight='bold')
     ax.tick_params(width=2, length=6, labelsize=16)
 
     # center & crop

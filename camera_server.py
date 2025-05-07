@@ -90,8 +90,8 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
             linewidth=2.5
         )
 
-    ax.spines['top'].set_visible(2)
-    ax.spines['right'].set_visible(2)
+    ax.spines['top'].set_linewidth(2)
+    ax.spines['right'].set_linewidth(2)
     ax.spines['bottom'].set_linewidth(2)
     ax.spines['left'].set_linewidth(2)
 
@@ -196,6 +196,8 @@ def compute_endpoint():
         ax.set_title(title, fontsize=16, weight='bold')
         ax.set_xlabel("Concentration", fontsize=15, weight='bold')
         ax.set_ylabel("Intensity", fontsize=15, weight='bold')
+        plt.xticks(fontsize=16, weight='bold')
+        plt.yticks(fontsize=16, weight='bold')
         ax.tick_params(width=2, length=6)
         for spine in ax.spines.values():
             spine.set_linewidth(2)

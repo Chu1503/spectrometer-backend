@@ -78,7 +78,7 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
             max_intensity = data['percentage'].max()
             max_intensities.append(max_intensity)
 
-            peaks, _ = find_peaks(data['percentage'], height=height)
+            peaks, _ = find_peaks(data['percentage'], height=60000)
             peak_positions = data.iloc[peaks]
             filtered_peaks = filter_peaks(peak_positions, threshold=25)
 
@@ -171,7 +171,15 @@ def plot_endpoint():
         dst   = os.path.join(UPLOAD_FOLDER, fname)
         f.save(dst)
         file_details.append((dst, COLORS[i % len(COLORS)]))
-        labels.append(fname.rsplit(".",1)[0])
+        # labels.append(fname.rsplit(".",1)[0])
+        labels_input = request.form.getlist("labels")
+        for i, f in enumerate(files):
+            fname = secure_filename(f.filename)
+            dst = os.path.join(UPLOAD_FOLDER, fname)
+            f.save(dst)
+            file_details.append((dst, COLORS[i % len(COLORS)]))
+            labels.append(labels_input[i] if i < len(labels_input) else fname.rsplit(".", 1)[0])
+
 
     # call your plot fn
     fig = plot_spectra(file_details, labels, xmin, xmax)

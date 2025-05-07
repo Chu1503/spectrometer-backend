@@ -113,8 +113,6 @@ def plot_spectra(file_details, labels, x_min, x_max, height=60):
 
     return fig, [round(v,1) for v in max_intensities]
 
-
-
 @app.route("/start", methods=["POST", "OPTIONS"])
 @cross_origin() 
 def start():
@@ -179,7 +177,42 @@ def plot_endpoint():
     plt.close(fig)
     return jsonify(plot=img_b64, intensities=intensities)
 
+@app.route("/compute", methods=["POST"])
+@cross_origin()
+def compute_endpoint():
+    data     = request.get_json(force=True)
+    i_values = data.get("i_values", [])
+    x_labels = data.get("x_labels", [])
+    i0       = float(data.get("i0", 1.0))
 
+    # Transmission and Absorbance
+    T = [v / i0 for v in i_values]
+    A = [-np.log10(t) for t in T]
+
+    def make_plot(x_axis, y_vals, title):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(x_axis, y_vals,
+                marker='o', linestyle='-', color='green', linewidth=2.5)
+        ax.set_title(title, fontsize=16, weight='bold')
+        ax.set_xlabel("Concentration", fontsize=15, weight='bold')
+        ax.set_ylabel("Intensity", fontsize=15, weight='bold')
+        ax.tick_params(width=2, length=6)
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+        fig.tight_layout(pad=2.0)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        plt.close(fig)
+        return base64.b64encode(buf.read()).decode('utf-8')
+
+    transmission_b64 = make_plot(x_labels, T, "Transmission")
+    absorbance_b64  = make_plot(x_labels, A, "Absorbance")
+
+    return jsonify(
+      transmission=transmission_b64,
+      absorbance=absorbance_b64
+    )
 
 def smooth_array(arr, window_size=9):
     if window_size < 2:

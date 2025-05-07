@@ -62,48 +62,57 @@ def gen_frames():
             time.sleep(0.1)
 
 def plot_spectra(file_details, labels, x_min, x_max, height=60):
-    plt.figure(figsize=(16, 6))
+    fig, ax = plt.subplots(figsize=(16, 6))
     max_intensities = []
 
     for idx, (file_path, color) in enumerate(file_details):
-        try:
-            data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['nm', 'percentage'], engine='python')
-            data = data.dropna()
-            data['nm'] = pd.to_numeric(data['nm'], errors='coerce')
-            data['percentage'] = pd.to_numeric(data['percentage'], errors='coerce')
-            data = data.dropna()
+        # ←── NEW: load & clean
+        data = pd.read_csv(
+            file_path,
+            sep=r'\s+',
+            header=None,
+            names=['nm', 'percentage'],
+            engine='python'
+        ).dropna()
+        data['nm'] = pd.to_numeric(data['nm'], errors='coerce')
+        data['percentage'] = pd.to_numeric(data['percentage'], errors='coerce')
+        data = data.dropna()
 
-            data = data[(data['nm'] >= x_min) & (data['nm'] <= x_max)]
+        # filter to x-range
+        data = data[(data['nm'] >= x_min) & (data['nm'] <= x_max)]
 
-            max_intensity = data['percentage'].max()
-            max_intensities.append(max_intensity)
+        # now it's safe to compute max and plot
+        max_intensity = data['percentage'].max()
+        max_intensities.append(max_intensity)
+        ax.plot(
+            data['nm'],
+            data['percentage'],
+            label=labels[idx],
+            color=color,
+            linewidth=2.5
+        )
 
-            # NO PEAK MARKERS
-            plt.plot(data['nm'], data['percentage'], label=labels[idx], color=color, linewidth=2.5)
+    # only left & bottom spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_linewidth(2)
+    ax.spines['left'].set_linewidth(2)
 
-        except Exception as e:
-            print(f"Error processing file {file_path}: {e}")
+    # tidy up limits & ticks
+    ax.set_xlim(x_min, x_max)
+    ax.set_xlabel("Wavelength (nm)", fontsize=15, weight='bold')
+    ax.set_ylabel("Intensity", fontsize=15, weight='bold')
+    ticks = np.arange(int(x_min//25)*25, int(x_max//25)*25 + 25, 25)
+    ax.set_xticks(ticks)
+    ax.tick_params(width=2, length=6, labelsize=16)
 
-    plt.xlabel("Wavelength (nm)", fontsize=15, weight='bold')
-    plt.ylabel("Intensity", fontsize=15, weight='bold')
-    plt.xlim(x_min, x_max)
+    # center & crop
+    fig.tight_layout(pad=1.0)
+    fig.subplots_adjust(left=0.08, right=0.97, top=0.93, bottom=0.12)
 
-    x_ticks = np.arange(int(x_min // 25) * 25, int(x_max // 25) * 25 + 25, 25)
-    plt.xticks(x_ticks, fontsize=16, weight='bold')
-    plt.yticks(fontsize=16, weight='bold')
+    ax.legend(loc='upper right', fontsize=14, prop={'weight':'bold'})
 
-    ax = plt.gca()
-    for spine in ax.spines.values():
-        spine.set_linewidth(2)
-
-    plt.tick_params(width=2, length=6)
-    plt.axhline(0, color='black', linewidth=1, linestyle='-')
-
-    plt.legend(title="", loc='upper right', fontsize=14, prop={'weight': 'bold', 'size': 14})
-    plt.tight_layout(pad=2.0)
-
-    print("\nI =", [round(val, 1) for val in max_intensities])
-    return plt.gcf(), [round(val, 1) for val in max_intensities]
+    return fig, [round(v,1) for v in max_intensities]
 
 
 
@@ -140,38 +149,37 @@ def video_feed():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
 @app.route("/plot", methods=["POST"])
 @cross_origin()
 def plot_endpoint():
-    files = request.files.getlist("files")
-    xmin = float(request.form.get("xmin", 400))
-    xmax = float(request.form.get("xmax", 625))
+    files      = request.files.getlist("files")
+    xmin, xmax = map(float, (request.form['xmin'], request.form['xmax']))
+    labels_in  = request.form.getlist("labels")  # must be exactly len(files)
 
     COLORS = [
     "orange", "red", "green", "blue", "violet",
     "lime", "teal", "cyan", "magenta", "yellow",
     "deeppink", "gold", "dodgerblue", "indigo", "darkorange"
-]
+    ]
 
     file_details, labels = [], []
-    labels_input = request.form.getlist("labels")
-
     for i, f in enumerate(files):
-        fname = secure_filename(f.filename)
-        dst = os.path.join(UPLOAD_FOLDER, fname)
+        dst = os.path.join(UPLOAD_FOLDER, secure_filename(f.filename))
         f.save(dst)
         file_details.append((dst, COLORS[i % len(COLORS)]))
-        labels.append(labels_input[i] if i < len(labels_input) else fname.rsplit(".", 1)[0])
+        labels.append(labels_in[i])  # no fallback
 
     fig, intensities = plot_spectra(file_details, labels, xmin, xmax)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", pad_inches=0.1)
     buf.seek(0)
-    img_b64 = base64.b64encode(buf.read()).decode("utf-8")
-    plt.close(fig)
+    img_b64 = base64.b64encode(buf.read()).decode()
 
+    plt.close(fig)
     return jsonify(plot=img_b64, intensities=intensities)
+
 
 
 def smooth_array(arr, window_size=9):
